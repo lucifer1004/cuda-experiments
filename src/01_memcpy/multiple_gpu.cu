@@ -1,14 +1,32 @@
+#include <cstdio>
 #include <cstdlib>
 #include <vector>
 
 #include <common.h>
-#include <cutensor.h>
-#include <cutensorMg.h>
-#include <cutensor_helpers.h>
+#include <mpi.h>
+#include <nvToolsExt.h>
+
+#define N (1 << 30)
 
 int main() {
-    cutensorMgHandle_t handle;
-    std::vector<int32_t> devices{0, 1, 2, 3, 4, 5, 6, 7};
-    cutensorMgCreate(&handle, 8, devices.data());
-    cutensorMgDestroy(handle);
+    int rank, ranks;
+    MPI_Init(nullptr, nullptr);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &ranks);
+    cudaSetDevice(rank);
+
+    float *hA, *dA;
+
+    std::string tag = "Rank " + std::to_string(rank);
+    nvtxRangePush(tag.c_str());
+    cudaHostAlloc(&hA, sizeof(float) * N, cudaHostAllocDefault);
+    cudaMalloc(&dA, sizeof(float) * N);
+    cudaMemcpy(dA, hA, sizeof(float) * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(hA, dA, sizeof(float) * N, cudaMemcpyDeviceToHost);
+    cudaFree(dA);
+    cudaFreeHost(hA);
+    nvtxRangePop();
+    MPI_Finalize();
+
+    return 0;
 }
